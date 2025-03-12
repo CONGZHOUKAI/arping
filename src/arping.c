@@ -170,6 +170,10 @@ libnet_t *libnet = 0;
  */
 static struct timespec lastpacketsent;
 
+static struct timespec lastarrival;
+
+static int state_timeout = 0;
+
 /* target string */
 static const char *target = "huh? bug in arping?";
 
@@ -1453,6 +1457,9 @@ pingip_recv(const char *unused, struct pcap_pkthdr *h, const char * const packet
 
         getclock(&arrival);
 
+        if (state_timeout == 0)
+                lastarrival = arrival;
+
 	if (vlan_tag >= 0) {
                 if (h->caplen < LIBNET_802_1Q_H + LIBNET_ARP_H + 2*(ETH_ALEN + 4)) {
                         return;
@@ -1586,6 +1593,11 @@ pingip_recv(const char *unused, struct pcap_pkthdr *h, const char * const packet
         }
         switch(display) {
         case DOT:
+                if (state_timeout) {
+			state_timeout = 0;
+                        printf("\nlast arrival=%s\n", ts2str(&lastarrival, &arrival , buf,
+                                sizeof(buf)));    
+                }
                 putchar('!');
                 break;
         case NORMAL:
@@ -1927,6 +1939,7 @@ ping_recv(pcap_t *pcap, uint32_t packetwait, pcap_handler func)
 		       switch (r) {
 		       case 0: /* timeout */
                                if (numrecvd == old_received) {
+                                       state_timeout = 1;
                                        if (reverse_beep) {
                                                printf("\a");
                                        }
